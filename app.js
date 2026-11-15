@@ -664,16 +664,31 @@ function evaluateAll() {
 
     // Bangun Matrix Row Table
     const age = q.ts ? Math.round((now - q.ts) / 1000) + 's' : '—';
-    const hb = ev.hard ? `🚫 ${ev.hard}` : (ev.blocked ? `⏳ ${ev.blocked}` : '✓ Lolos filter');
+    /* Status filter harus JUJUR per gerbang (v3): dulu "✓ Lolos filter" dicetak
+       begitu tidak ada blok keras — padahal gerbang kualitas (skor, ER, ATR/biaya,
+       mom/trend, HTF, anti-chase, retrace, SL swing, spread, spike, berita,
+       sentimen) sama sekali tidak tercermin. Sekarang: jumlah gerbang lolos
+       + alasan gerbang pertama yang gagal (detail penuh di tooltip). */
+    let hb, hbColor;
+    if (ev.hard){ hb = `🚫 ${ev.hard}`; hbColor = 'var(--down)'; }
+    else if (locked){ hb = `🔒 Plan terkunci (${lbl})`; hbColor = 'var(--up)'; }
+    else if (ev.blocked){ hb = `⏳ ${ev.blocked}`; hbColor = 'var(--gold)'; }
+    else if (ev.stage === 'WAIT'){ hb = `⏳ ${ev.reason || 'Warming up'}`; hbColor = 'var(--muted)'; }
+    else if (ev.sigOK){ hb = `✓ Lolos ${ev.gatesTotal}/${ev.gatesTotal} gerbang`; hbColor = 'var(--up)'; }
+    else {
+      const firstFail = (ev.reason || '').replace(/^(Disaring: |Hampir: )/, '').split(' • ')[0];
+      hb = `⚠ ${ev.gatesPassed}/${ev.gatesTotal} gerbang — ${firstFail}`;
+      hbColor = 'var(--gold)';
+    }
     matrixRows.push(`
-      <div class="scanRow ${locked ? 'active' : ''}">
+      <div class="scanRow ${locked ? 'active' : ''}" title="${(ev.reason || '').replace(/"/g, '&quot;')}">
         <div><b>${c.name}</b> <small style="color:var(--muted)">${c.nick}</small></div>
         <div><span class="pill ${stage.toLowerCase()}">${stage}</span></div>
         <div class="${ev.side === 'WAIT' ? '' : (buy ? 'upText' : 'downText')}">${ev.side === 'WAIT' ? '—' : (locked ? '🔒 ' + lbl : lbl)}</div>
         <div>${sgn(ev.score)}</div>
         <div style="font-family:monospace; font-weight:700;">${q.last ? q.last.toFixed(dp) : '—'}</div>
         <div style="color:var(--muted)">${age}</div>
-        <div style="font-size:10px; color:${ev.hard ? 'var(--down)' : (ev.blocked ? 'var(--gold)' : 'var(--up)')};">${hb}</div>
+        <div style="font-size:10px; color:${hbColor};">${hb}</div>
       </div>
     `);
   });
