@@ -37,6 +37,12 @@ Terminal hibrida terpadu yang menggabungkan:
    ```bash
    node tools/lock_test.js
    ```
+5. **Uji laporan winrate/loss (matematika + backtest data nyata + vonis layak)**:
+   ```bash
+   node tools/lock_backtest.js BTCUSD 0 72   # ambang default
+   node tools/lock_backtest.js BTCUSD 1 72   # ambang diturunkan (setCfg)
+   node tools/lock_backtest.js ETHUSD 1 72
+   ```
 
 ---
 
