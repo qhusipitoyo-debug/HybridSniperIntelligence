@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-11-15T11:39:48.604Z",
+  "source": "Binance",
+  "pairs": {
+    "BTC/USD": 65508.01,
+    "ETH/USD": 1833.88
+  },
+  "changePct": {
+    "BTC/USD": -2.46,
+    "ETH/USD": -3.82
+  }
+}

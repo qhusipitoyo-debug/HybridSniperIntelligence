@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SniperNews Intelligence — Hybrid Macro & Technical Terminal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1220'/%3E%3Cpath d='M6 22l6-9 5 6 4-5 5 8' fill='none' stroke='%2338ef7d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brandMark">⚡</div>
+    <div>
+      <h1>SNIPER<span>NEWS</span></h1>
+      <p>Hybrid Macro Intelligence &amp; Technical Execution Terminal</p>
+    </div>
+  </div>
+  <div class="topActions">
+    <div class="connection" id="binanceFeed"><i id="binanceDot"></i><span>BINANCE</span></div>
+    <div class="connection" id="derivFeed"><i id="derivDot"></i><span>DERIV</span></div>
+    <div class="mt5-pill" id="mt5Pill"><i class="dot" id="mt5Dot"></i><span id="mt5Text">MT5 FBS: Bridge Ready</span></div>
+    <select id="feedSelect" aria-label="Sumber feed">
+      <option value="hybrid" selected>HYBRID (Binance + Deriv)</option>
+      <option value="deriv">DERIV SAJA (14 Pair)</option>
+      <option value="binance">BINANCE SAJA (BTC, ETH)</option>
+    </select>
+    <select id="modeSelect">
+      <option value="balanced" selected>BALANCED (Stabil)</option>
+      <option value="momentum">MOMENTUM (Kuat)</option>
+      <option value="precision">PRECISION (Ketat)</option>
+      <option value="agresif">AGRESIF (Cepat)</option>
+    </select>
+    <button id="refreshBtn">↻ REFRESH</button>
+  </div>
+</header>
+
+<main>
+  <!-- Macro Radar & Catalyst Hero -->
+  <section class="radarHero">
+    <div class="catalystCard">
+      <div>
+        <span class="eyebrow">🚀 NEXT GLOBAL ECONOMIC CATALYST</span>
+        <h2 class="catalystTitle" id="catalystTitle">Memindai jadwal berita dunia…</h2>
+        <div class="catalystMeta">
+          <span>Dampak: <b id="catalystImpact">—</b></span>
+          <span>Mata Uang: <b id="catalystCcy">—</b></span>
+          <span>Jadwal: <b id="catalystTime">— WITA</b></span>
+          <span>Arah Prediksi: <b id="catalystBias" class="upText">—</b></span>
+        </div>
+      </div>
+      <div class="countdownBox">
+        <span class="countdownTimer" id="countdownTimer">--:--:--</span>
+        <span class="countdownLabel">menuju rilis berita</span>
+      </div>
+    </div>
+
+    <div class="macroCard">
+      <div>
+        <span class="eyebrow">🌐 SENTIMEN MAKRO &amp; FILTER RISIKO</span>
+        <div class="macroGrid">
+          <div class="macroMetric">
+            <span>FEAR &amp; GREED</span>
+            <b id="fngMetric">—</b>
+          </div>
+          <div class="macroMetric">
+            <span>REZIM PASAR</span>
+            <b id="regimeMetric">—</b>
+          </div>
+          <div class="macroMetric">
+            <span>PERLINDUNGAN NEWS</span>
+            <b id="shieldMetric" style="color:var(--up)">AMAN</b>
+          </div>
+        </div>
+      </div>
+      <div style="color:var(--muted); font-size:11px; line-height:1.5;">
+        <span id="macroSummary">Engine menggabungkan sinyal momentum teknikal dengan gerbang berita makro: order otomatis diblokir saat menjelang rilis berita besar untuk mencegah stop-hunt.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 1: Alert Cards (Sinyal Terkonfirmasi) -->
+  <section>
+    <div class="sectionHead">
+      <div>
+        <h2>🎯 PLAN TERKONFIRMASI (Lolos Filter Makro &amp; Teknikal)</h2>
+        <span>Hanya menampilkan sinyal yang lolos threshold skor, arah makro, dan filter volatilitas</span>
+      </div>
+      <span id="activePlanCount" style="color:var(--gold); font-weight:800;">0 Plan Aktif</span>
+    </div>
+    <div id="alertBoard" class="alertBoard">
+      <div style="color:var(--muted); padding:20px; font-size:12px;">Memindai pergerakan 14 pasangan mata uang &amp; komoditas…</div>
+    </div>
+  </section>
+
+  <!-- Section 2: Table Multi-Scanner -->
+  <section class="scanPanel">
+    <div class="sectionHead" style="padding:14px 14px 0;">
+      <div>
+        <h2>📊 MATRIX 14 PASANGAN PASAR (Live Real-Time)</h2>
+        <span>Monitor pergerakan multi-asset detik demi detik</span>
+      </div>
+    </div>
+    <div class="scanHeader">
+      <span>INSTRUMEN</span>
+      <span>STATUS</span>
+      <span>ARAH</span>
+      <span>SKOR</span>
+      <span>HARGA MID</span>
+      <span>UPDATE</span>
+      <span>STATUS FILTER &amp; NEWS</span>
+    </div>
+    <div id="scanRows"></div>
+  </section>
+
+  <!-- Section 3: Kalender Berita Ekonomi -->
+  <section class="calendarPanel">
+    <div class="sectionHead">
+      <div>
+        <h2>📅 JADWAL KALENDER EKONOMI (Forex Factory &amp; TradingView)</h2>
+        <span>Daftar rilis indikator makro berdampak Medium &amp; High minggu ini (Waktu WITA / UTC+8)</span>
+      </div>
+      <button id="toggleCalBtn" style="font-size:10px;">Tampilkan Semua</button>
+    </div>
+    <div id="calendarList" class="calendarList">
+      <div style="color:var(--muted); font-size:11px;">Memuat agenda kalender ekonomi…</div>
+    </div>
+  </section>
+
+  <!-- Section 4: Jurnal Eksekusi & Statistik -->
+  <section class="statsJournal">
+    <div class="journalCard">
+      <div class="sectionHead">
+        <h2>📈 JURNAL EKSEKUSI RIIL BROWSER</h2>
+        <span>Riwayat posisi yang terkunci dan selesai di sesi ini</span>
+      </div>
+      <div class="statsGrid">
+        <div class="statItem"><span>TOTAL TRADES</span><b id="statTotal">0</b></div>
+        <div class="statItem"><span>WIN RATE</span><b id="statWinRate" class="upText">—</b></div>
+        <div class="statItem"><span>TOTAL R PROFIT</span><b id="statTotalR">—</b></div>
+        <div class="statItem"><span>PROFIT FACTOR</span><b id="statPF">—</b></div>
+        <div class="statItem"><span>AVG R / TRADE</span><b id="statAvgR">—</b></div>
+        <div class="statItem"><span>MAX DRAWDOWN</span><b id="statDD">—</b></div>
+      </div>
+    </div>
+
+    <div class="journalCard">
+      <div class="sectionHead">
+        <h2>🕘 RIWAYAT ORDER TERKUNCI (Live Log)</h2>
+        <button id="clearJournalBtn" style="font-size:9px;">Clear</button>
+      </div>
+      <div id="historyList" class="historyList">
+        <div style="color:var(--muted); font-size:10px; padding:10px 0;">Belum ada order yang terkunci di sesi ini.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer style="width:min(1480px, calc(100% - 36px)); margin:0 auto 24px; display:flex; justify-content:space-between; color:#64748b; font-size:11px;">
+  <span>HYBRID SNIPER &amp; NEWS INTELLIGENCE • Live WebSocket Feed + Macro Economic Fusion</span>
+  <span>Local Environment Ready</span>
+</footer>
+
+<script src="engine.js?v=20"></script>
+<script src="context.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

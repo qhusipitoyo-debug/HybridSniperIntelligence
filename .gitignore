@@ -1,0 +1,14 @@
+# Node & Environment
+node_modules/
+npm-debug.log*
+.DS_Store
+*.tmp
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local Scratch
+scratch/
+bridge/*.log
