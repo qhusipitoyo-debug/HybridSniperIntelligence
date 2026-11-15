@@ -36,6 +36,12 @@
   </div>
 </header>
 
+<div class="paperBanner">
+  📝 <b>MODE PAPER</b> — Semua order di terminal ini adalah <b>simulasi</b>: tidak ada eksekusi ke broker mana pun.
+  Plan &amp; statistik hanya dari sinyal terkunci di browser ini. Go-live hanya dipertimbangkan setelah vonis di panel
+  🔒 Signal Lock berubah <b>LAYAK</b> (n ≥ 30 dan CI95 avgR &gt; 0 di data out-of-sample).
+</div>
+
 <main>
   <!-- Macro Radar & Catalyst Hero -->
   <section class="radarHero">
@@ -103,6 +109,7 @@
       </div>
       <span id="lockCount" style="color:var(--gold); font-weight:800;">0 Terkunci · 0 Konfirmasi</span>
     </div>
+    <div id="lockVerdict" style="padding:8px 14px; font-size:11px; color:var(--muted); border-bottom:1px solid var(--line);">Memuat vonis statistik…</div>
     <div class="scanHeader">
       <span>INSTRUMEN</span>
       <span>STATUS</span>

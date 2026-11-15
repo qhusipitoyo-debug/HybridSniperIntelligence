@@ -165,7 +165,7 @@ function handleLockEvent(res) {
     lockPlans[s.sym] = s;
     if (!storedEntries.some(e => e.id === s.id)) {
       storedEntries.push({ id: s.id, pair: s.sym, side: s.dir === 'BUY' ? 'UP' : 'DOWN',
-        order: s.dir, entry: s.entry, sl: s.sl, tp1: s.tp1, tp2: s.tp2, t: s.lockedAt, locked: true });
+        order: s.dir, entry: s.entry, sl: s.sl, tp1: s.tp1, tp2: s.tp2, t: s.lockedAt, locked: true, paper: true });
       saveAll();
       updateJournalUI();
     }
@@ -184,8 +184,28 @@ function handleLockEvent(res) {
   }
 }
 
+/* Vonis statistik live — aturan sama dengan tools/lock_backtest.js:
+   n ≥ 30 DAN batas bawah CI95 avgR (distribusi normal) > 0 → LAYAK. */
+function lockVerdictHTML(){
+  const hist = LOCK.historyList();
+  const n = hist.length;
+  if (!n) return '<b>VONIS: SAMPEL NOL</b> — belum ada plan terkunci yang selesai; kelayakan go-live belum bisa dinilai.';
+  const R = hist.map(h => h.resultR);
+  const mean = R.reduce((a, b) => a + b, 0) / n;
+  const sd = Math.sqrt(R.reduce((a, x) => a + (x - mean) ** 2, 0) / Math.max(1, n - 1));
+  const lo = n > 1 ? mean - 1.96 * sd / Math.sqrt(n) : null;
+  const wins = R.filter(x => x > 0).length;
+  const dd = (() => { let c = 0, p = 0, d = 0; for (const x of R){ c += x; p = Math.max(p, c); d = Math.max(d, p - c); } return d; })();
+  let verdict, color, catatan;
+  if (n < 30){ verdict = 'SAMPEL KURANG (' + n + '/30)'; color = 'var(--gold)'; catatan = 'kumpulkan data lebih lama sebelum menilai.'; }
+  else if (lo != null && lo > 0){ verdict = 'LAYAK (CI95 avgR > 0)'; color = 'var(--up)'; catatan = 'boleh dipertimbangkan live dengan manajemen modal ketat.'; }
+  else { verdict = 'BELUM LAYAK (CI95 avgR ≤ 0)'; color = 'var(--down)'; catatan = 'edge belum terbukti — jangan pakai akun riil.'; }
+  return '<b style="color:' + color + '">VONIS: ' + verdict + '</b> · n ' + n + ' · WR ' + (wins / n * 100).toFixed(0) + '% · avgR ' + mean.toFixed(2) + 'R · CI95 bawah ' + (lo == null ? '—' : lo.toFixed(2) + 'R') + ' · maxDD ' + dd.toFixed(1) + 'R — ' + catatan;
+}
+
 function updateLockUI() {
   if (!LOCK || !$('lockRows')) return;
+  safeHTML('lockVerdict', lockVerdictHTML());
   const plans = LOCK.allLocked();
   const rows = plans.length ? plans.map(s => {
     const c = PAIRS[s.sym] || { name: s.sym, nick: '', dp: 2 };
@@ -716,7 +736,7 @@ function updateJournalUI() {
   if (storedEntries.length) {
     const list = storedEntries.slice(-10).reverse().map(e => `
       <div class="historyRow">
-        <b>${e.pair} ${e.order}</b>
+        <b>${e.pair} ${e.order}</b>${e.paper ? ' <span style="color:var(--gold); font-size:9px;">PAPER</span>' : ''}
         <span>@ ${e.entry}</span>
         <span style="color:${e.resultR > 0 ? 'var(--up)' : (e.resultR < 0 ? 'var(--down)' : 'var(--gold)')};">${typeof e.resultR === 'number' ? fmtR(e.resultR) : 'BERJALAN'}</span>
       </div>

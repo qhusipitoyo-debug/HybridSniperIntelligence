@@ -354,6 +354,19 @@ main {
 .scanRow:hover { background: #111a26; }
 .scanRow.active { background: #162232; }
 
+/* Paper-mode banner & vonis statistik */
+.paperBanner {
+  width: min(1480px, calc(100% - 36px));
+  margin: 14px auto 0;
+  padding: 10px 16px;
+  background: #221a07;
+  border: 1px solid #6b5410;
+  border-radius: 10px;
+  color: #e8d48a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* Calendar Accordion */
 .calendarPanel {
   background: #0a0f16;
