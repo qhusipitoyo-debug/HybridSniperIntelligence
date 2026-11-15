@@ -1,0 +1,40 @@
+name: Update Economic Calendar 24/7
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: update-calendar
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch live calendar and sentiment
+        run: |
+          node tools/fetch_context.js || echo "fetch_context fallback"
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "419863+github-actions[bot]@users.noreply.github.com"
+          git add stats/calendar.json stats/sentiment.json
+          if git diff --cached --quiet; then
+            echo "No calendar updates."
+          else
+            git commit -m "chore(macro): update economic calendar and market sentiment [skip ci]"
+            git push origin HEAD:main
+          fi
