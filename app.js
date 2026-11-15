@@ -288,7 +288,20 @@ async function loadMacroContext() {
       fetch('stats/sentiment.json?v=' + Date.now(), { cache: 'no-store' }),
       fetch('stats/pair_stats.json?v=' + Date.now(), { cache: 'no-store' })
     ]);
-    if (cRes.ok) calendarEvents = await cRes.json();
+    if (cRes.ok) {
+      const cRaw = await cRes.json();
+      const rawList = Array.isArray(cRaw) ? cRaw : (cRaw.events || []);
+      calendarEvents = rawList.map(e => ({
+        ts: e.ts || Date.parse(e.date || e.Date),
+        title: e.title || e.Event,
+        country: e.country || e.Country,
+        impact: e.impact || (e.Importance >= 3 ? 'High' : (e.Importance === 2 ? 'Medium' : 'Low')),
+        forecast: e.forecast || e.Forecast || '',
+        previous: e.previous || e.Previous || '',
+        actual: e.actual || e.Actual || ''
+      })).filter(e => e.ts && e.title);
+      console.log('[macro] Calendar loaded:', calendarEvents.length, 'events');
+    }
     if (sRes.ok) sentimentData = await sRes.json();
     if (pRes.ok) pairStats = await pRes.json();
   } catch (e) {
@@ -313,17 +326,23 @@ function updateMacroUI() {
 function updateNextCatalyst() {
   const now = Date.now();
   if (!calendarEvents || !calendarEvents.length) return;
-  const upcoming = calendarEvents
+  const upcomingHighMed = calendarEvents
     .filter(e => e.ts > now && (e.impact === 'High' || e.impact === 'Medium'))
     .sort((a, b) => a.ts - b.ts);
+  const upcomingAll = calendarEvents
+    .filter(e => e.ts > now)
+    .sort((a, b) => a.ts - b.ts);
 
-  if (upcoming.length) {
-    nextCatalyst = upcoming[0];
+  nextCatalyst = upcomingHighMed[0] || upcomingAll[0] || null;
+
+  if (nextCatalyst) {
     safeText('catalystTitle', nextCatalyst.title);
     safeText('catalystImpact', nextCatalyst.impact);
     safeText('catalystCcy', nextCatalyst.country);
     const wita = new Date(nextCatalyst.ts + 8 * 3600000);
-    safeText('catalystTime', `${String(wita.getUTCHours()).padStart(2,'0')}:${String(wita.getUTCMinutes()).padStart(2,'0')}`);
+    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const dayStr = dayNames[wita.getUTCDay()];
+    safeText('catalystTime', `${dayStr}, ${String(wita.getUTCHours()).padStart(2,'0')}:${String(wita.getUTCMinutes()).padStart(2,'0')}`);
 
     let biasText = 'Menunggu Rilis';
     if (nextCatalyst.forecast && nextCatalyst.previous) {
@@ -338,6 +357,7 @@ function updateNextCatalyst() {
     }
     safeText('catalystBias', biasText);
   }
+  renderCountdown();
   renderCalendarList();
 }
 
