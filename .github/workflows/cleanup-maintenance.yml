@@ -1,0 +1,63 @@
+name: Weekly Maintenance & Cache Cleanup
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Setiap Minggu pukul 00:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trim old ledger records & clean temp files
+        run: |
+          # Jaga live_ledger.jsonl agar tidak membengkak (simpan 500 record terbaru jika > 1000 baris)
+          if [ -f stats/live_ledger.jsonl ]; then
+            LINES=$(wc -l < stats/live_ledger.jsonl)
+            if [ "$LINES" -gt 1000 ]; then
+              tail -n 500 stats/live_ledger.jsonl > stats/live_ledger.tmp
+              mv stats/live_ledger.tmp stats/live_ledger.jsonl
+              echo "Ledger trimmed from $LINES to 500 lines."
+            fi
+          fi
+
+          # Hapus file temporary dan log jika ada
+          find . -name "*.tmp" -type f -delete
+          find . -name "*.log" -type f -delete
+
+      - name: Commit maintenance changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "419863+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          if git diff --cached --quiet; then
+            echo "Working tree is clean. Nothing to commit."
+          else
+            git commit -m "chore(maintenance): weekly ledger compaction and cache cleanup [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Delete old workflow runs (> 7 days)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning up GitHub Actions workflow run logs older than 7 days…"
+          RUNS=$(gh api -X GET "repos/${{ github.repository }}/actions/runs?per_page=50" --jq '.workflow_runs[] | select(.status=="completed") | .id')
+          NOW=$(date +%s)
+          for run_id in $RUNS; do
+            CREATED_AT=$(gh api -X GET "repos/${{ github.repository }}/actions/runs/$run_id" --jq '.created_at')
+            RUN_SEC=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$CREATED_AT" +%s 2>/dev/null || echo "$NOW")
+            AGE_DAYS=$(( (NOW - RUN_SEC) / 86400 ))
+            if [ "$AGE_DAYS" -ge 7 ]; then
+              echo "Deleting old workflow run: $run_id (age: ${AGE_DAYS}d)"
+              gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$run_id" || true
+            fi
+          done
+          echo "Cleanup finished."
