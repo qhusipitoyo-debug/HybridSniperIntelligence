@@ -123,7 +123,8 @@ function lockIndicators(pair, bars) {
   const rvol = vN && vSum > 0 ? bars[n - 1].vol / (vSum / vN) : 0;
   const q = quotes[pair], P = PAIRS[pair];
   const spreadPips = q && P && P.pip > 0 ? (q.ask - q.bid) / P.pip : Infinity;
-  return { atr, rvol, spreadOK: !!P && spreadPips <= P.maxSpread };
+  // v3: spread absolut wajib untuk gerbang biaya (spread/risk) di lock.js
+  return { atr, rvol, spreadOK: !!P && spreadPips <= P.maxSpread, spread: q ? q.ask - q.bid : undefined };
 }
 
 function lockMacroCtx(pair) {

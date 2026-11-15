@@ -27,13 +27,25 @@
       'BTCUSD'/'ETHUSD'. Sekarang keduanya (regex) diterima.
    10) skor null/undefined membuat invalidasi (`score < dropScore`)
        tidak pernah jalan (undefined<50 = false). Wajib finite.
+
+   v3 (kelayakan akun riil, hasil uji backtest 72 jam BTC/ETH):
+   11) dropScore TIDAK lagi membunuh posisi terkunci — dulu 19/23 trade
+       mati INVALID (0R massal, winrate 7–11% artifisial). Sekarang posisi
+       hanya keluar non-SL/TP karena sinyal BERLAWANAN kuat (invalidDirScore)
+       atau TTL; hasil INVALID dibebankan R riil saat harga tutup (dulu 0R
+       flat — mengelembungkan laporan).
+   12) gerbang biaya: spread/risk > maxCostR (25%) → tolak entry; spread
+       tidak terukur → tolak (fail-closed).
+   13) rem akun: batas rugi harian (maxDailyLossR, hasil riil per hari UTC)
+       dan maksimum posisi terkunci serentak (maxConcurrent).
    ============================================================ */
 (function(root){
 'use strict';
 
 const LOCK_CFG = {
   enterScore: 70,        // skor minimum untuk kandidat (0–100)
-  dropScore: 50,         // hysteresis: batal jika skor < ini
+  dropScore: 50,         // v3: TIDAK DIPAKAI LAGI untuk membunuh posisi terkunci
+                         // (uji backtest: membunuh 19/23 trade → exit 0R massal)
   confirmCandles: 2,     // jumlah candle close berturut-turut searah
   maxRangeATR: 2.5,      // candle > 2.5 ATR dianggap spike
   maxWickRatio: 0.6,     // wick > 60% range = rejection/fake
@@ -41,10 +53,18 @@ const LOCK_CFG = {
   cooldownMs: 30 * 60 * 1000,
   newsBlockMin: 30,      // blok ±30 menit dari High impact
   rr: [1.5, 2.5],        // TP1, TP2 dalam kelipatan R
-  slATR: 1.5,
-  maxHoldMs: 4 * 60 * 60 * 1000, // TTL plan terkunci (4 jam) — baru di v2
+  slATR: 2.5,            // v3: 2.5×ATR (dulu 1.5 — sweep backtest BTC+ETH konsisten:
+                         // SL 1.5×ATR terhenti noise M15 → dominasi SL; 2.0 lalu 2.5
+                         // memperbaiki avgR monoton di KEDUA simbol. Tetap wajib
+                         // validasi out-of-sample via tools/lock_backtest.js)
+  maxHoldMs: 4 * 60 * 60 * 1000, // TTL plan terkunci (4 jam)
   tfMs: 15 * 60 * 1000,  // timeframe candle sinyal — untuk cek gap konfirmasi
-  tp1Frac: 0.5           // porsi posisi yang ditutup di TP1
+  tp1Frac: 0.5,          // porsi posisi yang ditutup di TP1
+  /* --- v3: kelayakan akun riil --- */
+  invalidDirScore: 70,   // sinyal BERLAWANAN dgn skor >= ini → INVALID (R riil saat tutup)
+  maxCostR: 0.25,        // tolak entry jika spread > 25% dari risk (biaya jangan makan risiko)
+  maxConcurrent: 3,      // maks posisi terkunci serentak
+  maxDailyLossR: 3       // berhenti entry hari itu setelah rugi -3R (direset per hari UTC)
 };
 
 /* state internal: symbol -> object */
@@ -52,6 +72,7 @@ const candidates = {}; // {dir, count, lastCandleTime}
 const locked     = {}; // sinyal terkunci (dibekukan)
 const cooldown   = {}; // symbol -> timestamp bebas lagi
 const history    = []; // ringkasan CLOSED (terbaru di akhir)
+const dayR       = { day:-1, r:0 }; // akumulasi hasil riil hari UTC ini (rem akun)
 
 const isCrypto = s => /^(BTC|ETH)(USD|USDT)$/i.test(s || '');
 const isGold   = s => /XAU|GOLD/i.test(s || '');
@@ -93,11 +114,14 @@ function macroAllows(sym, dir, ctx){
   return { ok:true };
 }
 
-/* tutup plan terkunci: catat history, set cooldown, bebaskan simbol */
+/* tutup plan terkunci: catat history, akumulasi R harian, set cooldown, bebaskan simbol */
 function finish(sym, s, status, resultR, now){
   s.status = status;
   s.resultR = Math.round(resultR * 1000) / 1000;
   s.closedAt = now;
+  const day = Math.floor(now / 86400000);
+  if (dayR.day !== day){ dayR.day = day; dayR.r = 0; }
+  dayR.r += s.resultR;                       // hasil riil (bisa negatif) → rem harian
   history.push({ id:s.id, sym, dir:s.dir, entry:s.entry, status, resultR:s.resultR, closedAt:now });
   if (history.length > 200) history.shift();
   cooldown[sym] = now + LOCK_CFG.cooldownMs;
@@ -156,26 +180,47 @@ function onCandleClose(sym, candle, ind, score, dir, ctx){
         ? LOCK_CFG.tp1Frac * LOCK_CFG.rr[0] + (1 - LOCK_CFG.tp1Frac) * r : r;
       return finish(sym, s, 'TIME', rr, now);
     }
-    // FIX (10): invalidasi butuh skor finite
-    if (isFiniteNum(score) && score < LOCK_CFG.dropScore && !s.tp1Hit){
-      return finish(sym, s, 'INVALID', 0, now);
+    /* v3: posisi yang sudah terkunci TIDAK dibunuh oleh peluruhan skor —
+       dulu `score < dropScore` membunuh 19/23 trade di backtest (exit 0R massal,
+       winrate 7–11% artifisial). Keluar non-SL/TP hanya karena:
+       (a) sinyal BERLAWANAN yang kuat (>= invalidDirScore), atau (b) TTL. */
+    const rNow = buy ? (candle.close - s.entry) / s.risk : (s.entry - candle.close) / s.risk;
+    if (dir !== s.dir && isFiniteNum(score) && score >= LOCK_CFG.invalidDirScore){
+      const rr = s.tp1Hit
+        ? LOCK_CFG.tp1Frac * LOCK_CFG.rr[0] + (1 - LOCK_CFG.tp1Frac) * rNow : rNow;
+      return finish(sym, s, 'INVALID', rr, now);   // R riil, bukan 0R flat
     }
     return { event:'HOLD', signal:s };
   }
 
-  /* --- 2) cooldown --- */
+  /* --- 2) pelindung akun riil (v3) --- */
+  const risk = ind.atr * LOCK_CFG.slATR;
+  if (!(risk > 0)) return { event:'REJECT', why:'RISK = 0' };
+  // Biaya: spread dibagi risk. TIDAK terukur → tolak (fail-closed, uang riil).
+  const costR = isFiniteNum(ind.spread) && ind.spread >= 0 ? ind.spread / risk : Infinity;
+
+  // Rem rugi harian: hasil riil hari ini (diakumulasi finish()) mencapai -maxDailyLossR
+  const day = Math.floor(now / 86400000);
+  if (dayR.day !== day){ dayR.day = day; dayR.r = 0; }
+  if (dayR.r <= -LOCK_CFG.maxDailyLossR)
+    return { event:'REJECT', why:'BATAS RUGI HARIAN (' + dayR.r.toFixed(2) + 'R ≤ -' + LOCK_CFG.maxDailyLossR + 'R)' };
+  if (Object.keys(locked).length >= LOCK_CFG.maxConcurrent)
+    return { event:'REJECT', why:'MAKS POSISI (' + LOCK_CFG.maxConcurrent + ' terkunci)' };
+
+  /* --- 3) cooldown --- */
   if (cooldown[sym]){
     if (now < cooldown[sym]) return { event:'COOLDOWN', until:cooldown[sym] };
     delete cooldown[sym];                    // bersihkan entri kedaluwarsa
   }
 
-  /* --- 3) filter kualitas --- */
+  /* --- 4) filter kualitas --- */
   const macro = macroAllows(sym, dir, ctx);
   const bad =
     !isFiniteNum(score) || score < LOCK_CFG.enterScore ||
     isSpike(candle, ind.atr) ||
     !(isFiniteNum(ind.rvol) && ind.rvol >= LOCK_CFG.minRVOL) ||  // FIX (2)
     !ind.spreadOK ||                                            // FIX (4): lihat why di bawah
+    costR > LOCK_CFG.maxCostR ||                                // v3: biaya vs risiko
     !macro.ok;
 
   if (bad){
@@ -183,13 +228,15 @@ function onCandleClose(sym, candle, ind, score, dir, ctx){
     return { event:'REJECT', why:
       !ind.spreadOK ? (ind.spreadOK === undefined ? 'SPREAD? (filter belum diisi caller)' : 'SPREAD LEBAR')
       : !macro.ok ? macro.why
+      : !isFiniteNum(ind.spread) ? 'BIAYA TIDAK DIUKUR (ind.spread wajib diisi)'
+      : costR > LOCK_CFG.maxCostR ? 'BIAYA TINGGI (' + (costR * 100).toFixed(0) + '% dari risk > ' + (LOCK_CFG.maxCostR * 100) + '%)'
       : !isFiniteNum(score) ? 'SKOR TIDAK VALID'
       : isSpike(candle, ind.atr) ? 'SPIKE'
       : !(isFiniteNum(ind.rvol) && ind.rvol >= LOCK_CFG.minRVOL) ? 'RVOL RENDAH'
       : 'SKOR < ' + LOCK_CFG.enterScore };
   }
 
-  /* --- 4) konfirmasi berulang (anti fake) --- */
+  /* --- 5) konfirmasi berulang (anti fake) --- */
   const c = candidates[sym];
   if (c && c.dir === dir && c.lastCandleTime !== candle.time){
     // FIX (8): gap candle memutus rantai "berturut-turut"
@@ -204,10 +251,8 @@ function onCandleClose(sym, candle, ind, score, dir, ctx){
   if (candidates[sym].count < LOCK_CFG.confirmCandles)
     return { event:'PENDING', count:candidates[sym].count };
 
-  /* --- 5) KUNCI: level dibekukan sekali saja --- */
+  /* --- 6) KUNCI: level dibekukan sekali saja --- */
   const entry = candle.close;
-  const risk = ind.atr * LOCK_CFG.slATR;
-  if (!(risk > 0)) return { event:'REJECT', why:'RISK = 0' };
   const sgn = dir === 'BUY' ? 1 : -1;
   locked[sym] = {
     id: sym + '-' + candle.time,
@@ -236,7 +281,7 @@ const API = {
   reset: () => { for (const k of Object.keys(candidates)) delete candidates[k];
                  for (const k of Object.keys(locked)) delete locked[k];
                  for (const k of Object.keys(cooldown)) delete cooldown[k];
-                 history.length = 0; }
+                 history.length = 0; dayR.day = -1; dayR.r = 0; }
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

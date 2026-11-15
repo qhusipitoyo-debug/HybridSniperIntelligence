@@ -21,10 +21,14 @@
 'use strict';
 const fs=require('fs'),path=require('path');
 const SYM=(process.argv[2]||'BTCUSD').toUpperCase(),RELAX=process.argv[3]==='1',HOURS=Number(process.argv[4]||72);
+const SLATR=Number(process.argv[5]||0),ENTER=Number(process.argv[6]||0),CONF=Number(process.argv[7]||0);
 const E=require('../engine.js'),LOCK=require('../lock.js');
 const CSV={BTCUSD:'BTCUSDT',ETHUSD:'ETHUSDT'}[SYM];
 if(!CSV){console.log('SYM hanya BTCUSD/ETHUSD (punya feed binance di PAIRS)');process.exit(1)}
 if(RELAX)LOCK.setCfg({enterScore:50,confirmCandles:1,minRVOL:1.0,cooldownMs:5*60000,maxHoldMs:3*3600000});
+if(SLATR)LOCK.setCfg({slATR:SLATR});
+if(ENTER)LOCK.setCfg({enterScore:ENTER});
+if(CONF)LOCK.setCfg({confirmCandles:CONF});
 
 /* =====================  A) MATEMATIKA STATISTIK  ===================== */
 let aFail=0;
@@ -129,7 +133,7 @@ function report(){
   const R=hist.map(h=>h.resultR);
   const C=hist.map(h=>{const p=pend[h.id];return 0}); // costR tersimpan via wrapper di event (lihat bawah)
   /* costR: ambil dari wrapper — simpan saat CLOSED */
-  console.log('\n=== B) BACKTEST '+SYM+' • '+HOURS+' jam data nyata • '+(RELAX?'ambang DITURUNKAN (setCfg)':'ambang DEFAULT (ketat)')+' • IN-SAMPLE ===');
+  console.log('\n=== B) BACKTEST '+SYM+' • '+HOURS+' jam data nyata • '+(RELAX?'ambang DITURUNKAN (setCfg)':'ambang DEFAULT (ketat)')+(SLATR?' • slATR '+SLATR:'')+(ENTER?' • enter '+ENTER:'')+(CONF?' • confirm '+CONF:'')+' • IN-SAMPLE ===');
   console.log('  tick direplay            : '+idx);
   console.log('  error runtime            : '+errors.length+(errors.length?'\n     '+errors.slice(0,3).join('\n     '):' (bersih)'));
   console.log('  trade tertutup           : '+hist.length);
