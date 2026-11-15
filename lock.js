@@ -131,7 +131,13 @@ function finish(sym, s, status, resultR, now){
 
 /* Panggil HANYA saat candle baru close (bukan tiap tick) */
 function onCandleClose(sym, candle, ind, score, dir, ctx){
-  const now = Date.now();
+  /* v4: `now` diambil dari WAKTU CANDLE, bukan jam dinding — supaya
+     cooldown/TTL/rem harian deterministik dan bisa direplay historis
+     (dulu Date.now(): satu trade di replay membekukan seluruh sisa
+     replay 527 candle via cooldown yang tak pernah lewat). Di live
+     candle.time = waktu open candle M15 itu, beda maksimal 15 mnt
+     dari sekarang — tidak mengubah perilaku secara berarti. */
+  const now = isFiniteNum(candle.time) && candle.time > 0 ? candle.time : Date.now();
 
   /* --- validasi input (baru di v2) --- */
   if (!candle || !isFiniteNum(candle.time) || !isFiniteNum(candle.open) ||
@@ -281,7 +287,28 @@ const API = {
   reset: () => { for (const k of Object.keys(candidates)) delete candidates[k];
                  for (const k of Object.keys(locked)) delete locked[k];
                  for (const k of Object.keys(cooldown)) delete cooldown[k];
-                 history.length = 0; dayR.day = -1; dayR.r = 0; }
+                 history.length = 0; dayR.day = -1; dayR.r = 0; },
+  /* snapshot/restore: dipakai replay walk-forward di UI — replay butuh
+     LOCK.reset(), dan state live (posisi terkunci, cooldown, jurnal)
+     wajib kembali utuh setelahnya. */
+  snapshot: () => ({
+    candidates: JSON.parse(JSON.stringify(candidates)),
+    locked: JSON.parse(JSON.stringify(locked)),
+    cooldown: JSON.parse(JSON.stringify(cooldown)),
+    history: JSON.parse(JSON.stringify(history)),
+    dayR: { day: dayR.day, r: dayR.r }
+  }),
+  restore: st => {
+    const clear = obj => { for (const k of Object.keys(obj)) delete obj[k]; };
+    clear(candidates); clear(locked); clear(cooldown); history.length = 0;
+    dayR.day = -1; dayR.r = 0;
+    if (!st) return;
+    Object.assign(candidates, st.candidates || {});
+    Object.assign(locked, st.locked || {});
+    Object.assign(cooldown, st.cooldown || {});
+    if (Array.isArray(st.history)) history.push(...st.history);
+    if (st.dayR && Number.isFinite(st.dayR.day)){ dayR.day = st.dayR.day; dayR.r = st.dayR.r; }
+  }
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

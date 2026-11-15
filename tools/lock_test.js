@@ -147,5 +147,21 @@ r = L.onCandleClose('AUDUSD', candle(0, 100, 105, 98, 104), ind, 80, 'BUY', ctx)
 r = L.onCandleClose('AUDUSD', candle(1, 104, 110, 102, 108), ind, 80, 'BUY', ctx);
 check('simbol ke-4 ditolak: MAKS POSISI', r.event === 'REJECT' && r.why.startsWith('MAKS POSISI'), r);
 
+console.log('16) Snapshot / restore (untuk replay walk-forward UI):');
+L.reset();
+r = L.onCandleClose('BTCUSD', candle(0, 100, 105, 98, 104), ind, 80, 'BUY', ctx); // kandidat
+r = L.onCandleClose('BTCUSD', candle(1, 104, 110, 102, 108), ind, 80, 'BUY', ctx); // LOCKED
+r = L.onCandleClose('ETHUSD', candle(0, 200, 205, 198, 204), ind, 80, 'BUY', ctx); // pending ETH
+const snap16 = L.snapshot();
+check('snapshot menangkap locked + candidate + cooldown', Object.keys(snap16.locked).length === 1 && Object.keys(snap16.candidates).length === 1, snap16);
+L.reset();
+check('setelah reset: kosong', L.allLocked().length === 0 && L.historyList().length === 0);
+L.restore(snap16);
+check('restore: plan BTC kembali utuh', (() => { const p = L.lockedPlan('BTCUSD'); return p && p.entry === 108 && p.dir === 'BUY'; })());
+r = L.onCandleClose('BTCUSD', candle(2, 108, 112, 80, 82), ind, 80, 'BUY', ctx);
+check('restore: posisi lanjut dikelola (SL kena)', r.event === 'CLOSED' && r.signal.status === 'SL', r);
+check('restore: cooldown BTC kembali (entry baru nolak)', (() => { const x = L.onCandleClose('BTCUSD', candle(3, 82, 84, 78, 83), ind, 80, 'BUY', ctx); return x.event === 'COOLDOWN'; })());
+L.reset();
+
 console.log('\nHasil: ' + pass + ' lulus, ' + fail + ' gagal');
 process.exit(fail ? 1 : 0);

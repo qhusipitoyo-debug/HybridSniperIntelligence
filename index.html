@@ -110,6 +110,20 @@
       <span id="lockCount" style="color:var(--gold); font-weight:800;">0 Terkunci · 0 Konfirmasi</span>
     </div>
     <div id="lockVerdict" style="padding:8px 14px; font-size:11px; color:var(--muted); border-bottom:1px solid var(--line);">Memuat vonis statistik…</div>
+    <div style="padding:8px 14px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:11px;">
+      <button id="wfRun" style="background:#16222e; color:var(--up); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer;">▶ Evaluasi Walk-Forward</button>
+      <select id="wfSym" style="background:#0d151d; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:6px 8px;">
+        <option value="BTCUSD">BTC/USD</option>
+        <option value="ETHUSD">ETH/USD</option>
+      </select>
+      <select id="wfDays" style="background:#0d151d; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:6px 8px;">
+        <option value="15">15 hari</option>
+        <option value="30" selected>30 hari</option>
+        <option value="60">60 hari</option>
+      </select>
+      <span id="wfStatus" style="color:var(--muted);"></span>
+    </div>
+    <div id="wfOut"></div>
     <div class="scanHeader">
       <span>INSTRUMEN</span>
       <span>STATUS</span>
@@ -194,7 +208,8 @@
 
 <script src="engine.js?v=20"></script>
 <script src="context.js?v=1"></script>
-<script src="lock.js?v=2"></script>
-<script src="app.js?v=4"></script>
+<script src="lock.js?v=3"></script>
+<script src="wf.js?v=1"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

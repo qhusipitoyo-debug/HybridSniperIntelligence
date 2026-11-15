@@ -227,6 +227,110 @@ function updateLockUI() {
   safeText('lockCount', `${plans.length} Terkunci · ${LOCK.allCandidates().filter(c => c.count > 0).length} Konfirmasi`);
 }
 
+/* ============================================================
+   EVALUASI WALK-FORWARD (wf.js) — replay kline 1m Binance lewat
+   engine + lock yang SAMA dengan live, dengan biaya spread.
+   Vonis: aturan sama dgn panel vonis live & tools backtest.
+   Jujur: IN-SAMPLE, gerbang berita netral, spread = asumsi.
+   ============================================================ */
+let wfBusy = false;
+
+function wfFmt(x, dp = 2) { return x == null ? '—' : Number(x).toFixed(dp); }
+
+function renderWalkforward(res) {
+  const st = res.stats, cfg = res.config, v = window.WF.verdict(st);
+  const color = v.code === 'LAYAK' ? 'var(--up)' : v.code === 'GAGAL' ? 'var(--down)' : 'var(--gold)';
+  const label = v.code === 'LAYAK' ? 'LAYAK' : v.code === 'GAGAL' ? 'BELUM LAYAK' : 'SAMPEL NOL';
+  const pf = p => p == null ? '—' : p === Infinity ? '∞' : p.toFixed(2);
+  const d = ms => new Date(ms).toISOString().slice(0, 10);
+  let html = `<div style="padding:10px 14px; font-size:11px; line-height:1.7;">
+    <b style="color:${color}; font-size:12px;">VONIS WALK-FORWARD: ${label}</b>` +
+    (v.reasons.length ? ' — ' + v.reasons.join(' • ') : '') + `<br>
+    Replay <b>${cfg.bars}</b> bar 1m (${d(cfg.from)} → ${d(cfg.to)} UTC) · mode ${cfg.mode} · biaya asumsi <b>${cfg.costPct.toFixed(2)}%/sisi</b> (spread masuk + keluar)<br>
+    n <b>${st.n}</b> · WR net ${wfFmt(st.wrN, 0)}% · avgR gross ${wfFmt(st.avgG)}R → <b>net ${wfFmt(st.avgN)}R</b> · CI95 bawah net ${wfFmt(st.ciN)}R ·
+    PF gross ${pf(st.pfG)} / net ${pf(st.pfN)} · biaya rata-rata ${wfFmt(st.costAvg)}R/trade · total net ${wfFmt(st.totN)}R · maxDD ${wfFmt(st.maxDD)}R
+    </div>`;
+  if (res.weeks.length) {
+    html += `<div style="padding:0 14px 8px; font-size:11px; overflow-x:auto;"><table style="border-collapse:collapse; width:100%;">
+      <tr style="color:var(--muted); text-align:left;"><th style="padding:2px 10px 2px 0;">Minggu mulai (UTC)</th><th>n</th><th>avgR net</th><th>total net</th></tr>` +
+      res.weeks.map(w => `<tr>
+        <td style="padding:2px 10px 2px 0;">${w.week}</td><td>${w.n}</td>
+        <td style="color:${w.n && w.net / w.n >= 0 ? 'var(--up)' : 'var(--down)'}">${wfFmt(w.n ? w.net / w.n : null)}R</td>
+        <td style="color:${w.net >= 0 ? 'var(--up)' : 'var(--down)'}">${wfFmt(w.net)}R</td></tr>`).join('') +
+      `</table></div>`;
+  }
+  const sh = res.stability;
+  html += `<div style="padding:0 14px 10px; font-size:11px; color:var(--muted); line-height:1.6;">
+    Stabilitas 60/40: periode awal n ${sh.firstHalf.n} → avgR net ${wfFmt(sh.firstHalf.avgN)}R · periode akhir n ${sh.lastHalf.n} → avgR net ${wfFmt(sh.lastHalf.avgN)}R.
+    Dua periode harus searah — kalau berlawanan, sinyalnya tidak stabil.<br>
+    ⚠️ <b>IN-SAMPLE</b>: parameter default tanpa optimisasi; gerbang berita/makro netral (kalender tidak direplay — angka cenderung optimis untuk sisi berita); spread = asumsi, bukan data broker Anda. Vonis LAYAK di sini tetap wajib dikonfirmasi data live berikutnya.
+    </div>`;
+  safeHTML('wfOut', html);
+}
+
+async function runLockWalkforward() {
+  if (!LOCK || !window.WF || wfBusy) return;
+  const sym = $('wfSym') ? $('wfSym').value : 'BTCUSD';
+  const days = $('wfDays') ? Number($('wfDays').value) : 15;
+  const costPct = 0.02; // % harga per sisi ≈ spread broker retail BTC/ETH; naikkan bila broker lebih lebar
+  wfBusy = true;
+  const btn = $('wfRun'); if (btn) btn.disabled = true;
+  safeText('wfStatus', 'Mengunduh kline 1m…');
+  try {
+    const csv = PAIRS[sym] && PAIRS[sym].binance;
+    if (!csv) throw new Error(sym + ' tidak punya feed kline Binance');
+    const total = days * 1440, bars = [];
+    let endTime;
+    outer:
+    for (const host of BINANCE_REST_HOSTS) {
+      try {
+        while (bars.length < total) {
+          const r = await fetch(host + '/api/v3/klines?symbol=' + csv.toUpperCase() + '&interval=1m&limit=1000' + (endTime ? '&endTime=' + endTime : ''), { cache: 'no-store' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const rows = await r.json();
+          if (!rows || !rows.length) break;
+          for (const k of rows) bars.push({ k: Math.floor(k[0] / 60000), o: N(k[1]), h: N(k[2]), l: N(k[3]), c: N(k[4]), vol: N(k[5]) });
+          endTime = rows[0][0] - 1;
+          safeText('wfStatus', 'Mengunduh kline ' + bars.length + '/' + total + '…');
+        }
+        break outer;
+      } catch (e) { /* coba host berikutnya */ }
+    }
+    if (bars.length < 800) throw new Error('Data kline tidak cukup (' + bars.length + ' bar)');
+    bars.sort((a, b) => a.k - b.k);
+    safeText('wfStatus', 'Replay ' + bars.length + ' bar → engine + lock… (UI membeku ±10–60 detik)');
+    await new Promise(r => setTimeout(r, 80)); // beri kesempatan status terender
+    /* state live disimpan & dikembalikan utuh — replay tidak boleh
+       menyentuh posisi terkunci / jurnal / rem harian yang sedang jalan */
+    /* provider berita/sentimen engine bersifat global — dimatikan selama
+       replay supaya sentimen/berita HARI INI tidak bocor ke masa lalu,
+       lalu dipasang kembali setelahnya. */
+    E.setNewsProvider(null);
+    E.setSentimentProvider(null);
+    const snap = LOCK.snapshot();
+    LOCK.reset();
+    let res;
+    try {
+      const runner = window.WF.createRunner({
+        E, LOCK, sym, bars, costPct,
+        mode: (typeof selectedMode !== 'undefined' && selectedMode) || 'balanced'
+      });
+      while (!runner.step(400)) {}
+      res = runner.result();
+    } finally {
+      LOCK.restore(snap);
+      setupProviders();
+    }
+    renderWalkforward(res);
+    safeText('wfStatus', '');
+  } catch (e) {
+    safeText('wfStatus', 'Gagal: ' + ((e && e.message) || e));
+  } finally {
+    wfBusy = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
 function needBars(pair) {
   const p = engines[pair] ? engines[pair].params() : E.PARAMS;
   return Math.min(1000, Math.max(320, (Math.max(p.MIN_BARS || 12, 62)) * (p.BAR_MIN || 1)));
@@ -806,6 +910,8 @@ function boot() {
       evaluateAll();
     });
   }
+
+  if ($('wfRun')) $('wfRun').addEventListener('click', runLockWalkforward);
 }
 
 if (document.readyState === 'loading') {
