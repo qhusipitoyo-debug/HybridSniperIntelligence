@@ -1,8 +1,8 @@
 /* ============================================================
-   SNIPERNEWS INTELLIGENCE — HYBRID ENGINE CONTROLLER
+   SNIPERNEWS INTELLIGENCE — HYBRID ENGINE CONTROLLER v1
    Menggabungkan Radar Makro & Berita dengan Scanner Teknikal Sniper 14 Pair.
    ============================================================ */
-console.log('[app] SniperNews Hybrid Controller initialized');
+console.log('[app] SniperNews Hybrid Controller starting…');
 
 const $ = id => document.getElementById(id);
 const N = x => Number(x) || 0;
@@ -21,6 +21,7 @@ const FEEDS = {
 
 const DERIV_WS = 'wss://api.derivws.com/trading/v1/options/ws/public';
 const BINANCE_WS_HOSTS = ['wss://data-stream.binance.vision', 'wss://stream.binance.com:9443', 'wss://stream.binance.com'];
+const BINANCE_REST_HOSTS = ['https://data-api.binance.vision', 'https://api.binance.com'];
 
 let selectedFeed = 'hybrid';
 let selectedMode = 'balanced';
@@ -28,6 +29,9 @@ let calendarEvents = [];
 let sentimentData = null;
 let pairStats = null;
 let nextCatalyst = null;
+let stopFeed = null;
+let restPollTimer = null;
+let feedWatchTimer = null;
 
 const engines = {};
 const quotes = {};
@@ -45,26 +49,190 @@ const safeClass = (id, cls) => { try { const el = $(id); if (el) el.className = 
 
 /* ---------- WebSocket Helper ---------- */
 function openWS(url, onOpen, onMsg, label = 'ws') {
-  let ws = null, delay = 500, dead = false;
+  let ws = null, delay = 500, dead = false, timer = null;
+  const retry = () => { if (dead) return; timer = setTimeout(go, delay); delay = Math.min(15000, delay * 2); };
   const go = () => {
     if (dead) return;
     try {
       const me = new WebSocket(url);
       ws = me;
-      me.onopen = () => { if (dead || ws !== me) return; onOpen && onOpen(me); };
-      me.onmessage = e => { if (dead || ws !== me) return; delay = 500; try { onMsg(JSON.parse(e.data)); } catch {} };
+      me.onopen = () => { if (dead || ws !== me) return; console.log(`[${label}] connected`); onOpen && onOpen(me); };
+      me.onmessage = e => { if (dead || ws !== me) return; delay = 500; try { onMsg(JSON.parse(e.data)); } catch (err) {} };
       me.onerror = () => {};
-      me.onclose = () => { if (dead || ws !== me) return; setTimeout(go, delay); delay = Math.min(15000, delay * 2); };
-    } catch { setTimeout(go, delay); }
+      me.onclose = ev => { if (dead || ws !== me) return; retry(); };
+    } catch { retry(); }
   };
   go();
-  return () => { dead = true; if (ws) try { ws.close(); } catch {} };
+  return () => { dead = true; clearTimeout(timer); if (ws) try { ws.close(); } catch {} };
 }
 
-/* ---------- Inisialisasi Engine & Kalender ---------- */
-function initEngines() {
-  const now = Date.now();
-  ALL_KEYS.forEach(pair => {
+/* ---------- Ingest per Pair ---------- */
+function ingestPair(pair, bid, ask, now) {
+  if (!(bid > 0 && ask > 0 && ask >= bid) || !PAIRS[pair]) return;
+  const mid = (bid + ask) / 2;
+  quotes[pair] = { bid, ask, last: mid, ts: now };
+  const eng = engines[pair];
+  if (eng) {
+    eng.onTick(now, bid, ask);
+  }
+}
+
+function needBars(pair) {
+  const p = engines[pair] ? engines[pair].params() : E.PARAMS;
+  return Math.min(1000, Math.max(320, (Math.max(p.MIN_BARS || 12, 62)) * (p.BAR_MIN || 1)));
+}
+
+function seedEng(eng, bars) {
+  try {
+    if (eng && typeof eng.seedBars === 'function') {
+      eng.seedBars(bars);
+    }
+  } catch (e) { console.warn('seed', e); }
+}
+
+/* ---------- Prefill Binance Bars ---------- */
+async function prefillBinancePair(pair, sym) {
+  if (!sym) return;
+  const limit = needBars(pair);
+  for (const h of BINANCE_REST_HOSTS) {
+    try {
+      const r = await fetch(h + '/api/v3/klines?symbol=' + sym.toUpperCase() + '&interval=1m&limit=' + limit, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const rows = await r.json();
+      const bars = rows.map(k => ({ k: Math.floor(k[0] / 60000), o: N(k[1]), h: N(k[2]), l: N(k[3]), c: N(k[4]) }));
+      seedEng(engines[pair], bars);
+      return;
+    } catch {}
+  }
+}
+
+/* ---------- Binance Streaming ---------- */
+function startBinanceMulti(keys) {
+  const syms = keys.map(k => PAIRS[k].binance).filter(Boolean);
+  if (!syms.length) return () => {};
+  let stopWs = null, dead = false;
+  const streams = syms.map(s => s + '@bookTicker/' + s + '@trade').join('/');
+  const symToPair = {};
+  keys.forEach(k => { if (PAIRS[k].binance) symToPair[PAIRS[k].binance] = k; });
+
+  const connect = () => {
+    if (dead) return;
+    if (stopWs) { try { stopWs(); } catch {} stopWs = null; }
+    const host = BINANCE_WS_HOSTS[0];
+    const url = host + '/stream?streams=' + streams;
+    stopWs = openWS(url, () => {
+      safeClass('binanceDot', 'live');
+    }, msg => {
+      const stream = String(msg.stream || ''), d = msg.data || msg, now = Date.now();
+      const m = stream.match(/^([a-z0-9]+)@/);
+      const sym = m ? m[1] : String(d.s || '').toLowerCase();
+      const pair = symToPair[sym];
+      if (!pair) return;
+      if (stream.endsWith('@bookTicker') || (d.b && d.a && d.e === undefined)) {
+        ingestPair(pair, N(d.b), N(d.a), now);
+        return;
+      }
+      if (stream.endsWith('@trade') || d.e === 'trade') {
+        const q = N(d.q);
+        if (engines[pair] && q > 0) engines[pair].addFlow(now, (d.m ? -1 : 1) * q);
+      }
+    }, 'binance-multi');
+  };
+  connect();
+
+  const poll = async () => {
+    if (dead) return;
+    try {
+      const h = BINANCE_REST_HOSTS[0];
+      await Promise.all(syms.map(async sym => {
+        try {
+          const r = await fetch(h + '/api/v3/ticker/bookTicker?symbol=' + sym.toUpperCase(), { cache: 'no-store' });
+          if (!r.ok) return;
+          const d = await r.json(), pair = symToPair[sym], q = quotes[pair];
+          if (!pair) return;
+          if (!q || Date.now() - q.ts > 2000) {
+            ingestPair(pair, N(d.bidPrice), N(d.askPrice), Date.now());
+          }
+        } catch {}
+      }));
+    } catch {}
+  };
+  restPollTimer = setInterval(poll, 2000);
+  poll();
+  syms.forEach(sym => prefillBinancePair(symToPair[sym], sym));
+
+  return () => {
+    dead = true;
+    if (restPollTimer) clearInterval(restPollTimer);
+    if (stopWs) try { stopWs(); } catch {}
+  };
+}
+
+/* ---------- Deriv Streaming ---------- */
+function startDerivMulti(keys) {
+  let pingTimer = null, dead = false;
+  const stopWs = openWS(DERIV_WS, ws => {
+    safeClass('derivDot', 'live');
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = setInterval(() => { try { ws.send(JSON.stringify({ ping: 1 })); } catch {} }, 15000);
+    keys.forEach(k => {
+      const sym = PAIRS[k].deriv;
+      if (!sym) return;
+      ws.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+      ws.send(JSON.stringify({ ticks_history: sym, adjust_start_time: 1, count: needBars(k), end: 'latest', granularity: 60, style: 'candles' }));
+    });
+  }, msg => {
+    if (msg.candles && msg.echo_req) {
+      const sym = msg.echo_req.ticks_history || msg.echo_req.ticks;
+      const pair = keys.find(k => PAIRS[k].deriv === sym);
+      if (pair) {
+        const bars = (msg.candles || []).map(c => ({ k: Math.floor(N(c.epoch) / 60), o: N(c.open), h: N(c.high), l: N(c.low), c: N(c.close) }));
+        seedEng(engines[pair], bars);
+      }
+      return;
+    }
+    const t = msg.tick;
+    if (!t) return;
+    const pair = keys.find(k => PAIRS[k].deriv === (t.symbol || ''));
+    if (!pair) return;
+    let bid = N(t.bid), ask = N(t.ask), q = N(t.quote);
+    const now = t.epoch ? N(t.epoch) * 1000 : Date.now();
+    if (!(bid > 0 && ask > 0)) {
+      if (!(q > 0)) return;
+      const half = PAIRS[pair].pip * 0.4;
+      bid = q - half; ask = q + half;
+    }
+    ingestPair(pair, bid, ask, now);
+  }, 'deriv-multi');
+
+  return () => {
+    dead = true;
+    if (pingTimer) clearInterval(pingTimer);
+    try { stopWs(); } catch {}
+  };
+}
+
+function startFeed() {
+  if (stopFeed) { try { stopFeed(); } catch {} stopFeed = null; }
+  buildEngines(ALL_KEYS);
+
+  if (selectedFeed === 'hybrid') {
+    const binKeys = ALL_KEYS.filter(k => !!PAIRS[k].binance);
+    const derivKeys = ALL_KEYS.filter(k => !PAIRS[k].binance);
+    const stopB = startBinanceMulti(binKeys);
+    const stopD = startDerivMulti(derivKeys);
+    stopFeed = () => { try { stopB(); } catch {} try { stopD(); } catch {} };
+  } else if (selectedFeed === 'deriv') {
+    stopFeed = startDerivMulti(ALL_KEYS);
+  } else if (selectedFeed === 'binance') {
+    const binKeys = ALL_KEYS.filter(k => !!PAIRS[k].binance);
+    stopFeed = startBinanceMulti(binKeys);
+  }
+}
+
+function buildEngines(keys) {
+  const now = Date.now(), today = Math.floor(now / 86400000);
+  keys.forEach(pair => {
     const hasFlow = (selectedFeed === 'binance' || selectedFeed === 'hybrid') && !!PAIRS[pair].binance;
     const eng = E.create(pair, { mode: selectedMode, stale: 20000, hasFlow, feed: selectedFeed });
     engines[pair] = eng;
@@ -74,9 +242,8 @@ function initEngines() {
   });
 }
 
-/* ---------- Hook Penyedia Berita & Sentimen ---------- */
+/* ---------- Setup Hook Berita & Sentimen ---------- */
 function setupProviders() {
-  // 1. News Provider Hook: memblokir sinyal teknikal saat berada di jendela berita besar
   E.setNewsProvider((pairKey, now) => {
     if (!calendarEvents || !calendarEvents.length) return null;
     const p = PAIRS[pairKey];
@@ -88,7 +255,7 @@ function setupProviders() {
     for (const ev of calendarEvents) {
       if (ev.impact !== 'High' && ev.impact !== 'Medium') continue;
       if (!currs.includes(ev.country)) continue;
-      const diff = ev.ts - now; // ms
+      const diff = ev.ts - now;
       if (diff >= -15 * 60000 && diff <= 0) {
         return { phase: 'post', impact: ev.impact === 'High' ? 3 : 2, event: ev.title };
       }
@@ -99,14 +266,13 @@ function setupProviders() {
     return null;
   });
 
-  // 2. Sentiment Provider Hook: menyelaraskan skor teknikal dengan rezim makro
   E.setSentimentProvider((pairKey, now) => {
     if (!sentimentData) return null;
     const isCrypto = PAIRS[pairKey] && PAIRS[pairKey].kind === 'crypto';
     const isGold = pairKey === 'XAUUSD';
     let pairBias = 0;
     if (isCrypto && sentimentData.fng) {
-      pairBias = sentimentData.fng.score || 0; // -1 to +1
+      pairBias = sentimentData.fng.score || 0;
     } else if (isGold && sentimentData.market24h) {
       pairBias = sentimentData.market24h.goldPct > 0 ? 0.3 : -0.3;
     }
@@ -156,12 +322,9 @@ function updateNextCatalyst() {
     safeText('catalystTitle', nextCatalyst.title);
     safeText('catalystImpact', nextCatalyst.impact);
     safeText('catalystCcy', nextCatalyst.country);
-    const d = new Date(nextCatalyst.ts);
-    // Tampilkan waktu WITA (UTC+8)
     const wita = new Date(nextCatalyst.ts + 8 * 3600000);
     safeText('catalystTime', `${String(wita.getUTCHours()).padStart(2,'0')}:${String(wita.getUTCMinutes()).padStart(2,'0')}`);
 
-    // Estimasi Bias Makro sederhana
     let biasText = 'Menunggu Rilis';
     if (nextCatalyst.forecast && nextCatalyst.previous) {
       const f = parseFloat(nextCatalyst.forecast), p = parseFloat(nextCatalyst.previous);
@@ -185,16 +348,16 @@ function renderCountdown() {
   if (diff <= 0) {
     safeText('countdownTimer', '00:00:00');
     safeText('shieldMetric', 'WASPADA (RILIS)');
-    $('shieldMetric').style.color = 'var(--down)';
+    if ($('shieldMetric')) $('shieldMetric').style.color = 'var(--down)';
     updateNextCatalyst();
     return;
   }
   if (diff <= 15 * 60000) {
     safeText('shieldMetric', 'BLOCKED (±15m)');
-    $('shieldMetric').style.color = 'var(--gold)';
+    if ($('shieldMetric')) $('shieldMetric').style.color = 'var(--gold)';
   } else {
     safeText('shieldMetric', 'AMAN (CLEAR)');
-    $('shieldMetric').style.color = 'var(--up)';
+    if ($('shieldMetric')) $('shieldMetric').style.color = 'var(--up)';
   }
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
@@ -230,48 +393,6 @@ function renderCalendarList() {
   safeHTML('calendarList', html);
 }
 
-/* ---------- Feed Streaming (WebSocket) ---------- */
-function startDerivFeed() {
-  const symbols = ALL_KEYS.map(k => PAIRS[k].deriv).filter(Boolean);
-  const ws = openWS(DERIV_WS, me => {
-    safeClass('derivDot', 'live');
-    symbols.forEach(sym => me.send(JSON.stringify({ ticks: sym, subscribe: 1 })));
-  }, msg => {
-    if (msg.tick) {
-      const sym = msg.tick.symbol;
-      const pair = ALL_KEYS.find(k => PAIRS[k].deriv === sym);
-      if (!pair) return;
-      if (selectedFeed === 'binance' && PAIRS[pair].binance) return;
-      const bid = msg.tick.bid || (msg.tick.quote - (PAIRS[pair].typSpread || 1) * PAIRS[pair].pip * 0.5);
-      const ask = msg.tick.ask || (msg.tick.quote + (PAIRS[pair].typSpread || 1) * PAIRS[pair].pip * 0.5);
-      quotes[pair] = { bid, ask, last: (bid + ask) / 2, ts: Date.now() };
-      if (engines[pair]) engines[pair].onTick(Date.now(), bid, ask);
-    }
-  }, 'deriv');
-  return ws;
-}
-
-function startBinanceFeed() {
-  const cryptoPairs = ALL_KEYS.filter(k => PAIRS[k].binance);
-  const streams = cryptoPairs.map(k => PAIRS[k].binance + '@bookTicker').join('/');
-  const url = BINANCE_WS_HOSTS[0] + '/stream?streams=' + streams;
-
-  const ws = openWS(url, () => {
-    safeClass('binanceDot', 'live');
-  }, msg => {
-    const d = msg.data;
-    if (!d || !d.s) return;
-    const sym = d.s.toLowerCase();
-    const pair = cryptoPairs.find(k => PAIRS[k].binance === sym);
-    if (!pair) return;
-    const bid = parseFloat(d.b), ask = parseFloat(d.a);
-    if (!(bid > 0 && ask > 0)) return;
-    quotes[pair] = { bid, ask, last: (bid + ask) / 2, ts: Date.now() };
-    if (engines[pair]) engines[pair].onTick(Date.now(), bid, ask);
-  }, 'binance');
-  return ws;
-}
-
 /* ---------- Manajemen Lot & Posisi ---------- */
 function lotFor(plan) {
   const c = PAIRS[plan.pair] || PAIRS.EURUSD;
@@ -296,7 +417,6 @@ function evaluateAll() {
     const c = PAIRS[pair];
     const dp = c.dp;
 
-    // Evaluasi sinyal engine
     const ev = eng.evaluate(now);
     const buy = ev.side === 'UP';
     const lbl = buy ? 'BUY' : 'SELL';
@@ -453,36 +573,56 @@ function updateJournalUI() {
   }
 }
 
-/* ---------- Start Up ---------- */
-window.addEventListener('DOMContentLoaded', () => {
+/* ---------- Start Up (Boot Safe) ---------- */
+function boot() {
+  console.log('[app] Booting SniperNews Engine & Feeds…');
   loadAll();
-  initEngines();
   setupProviders();
   loadMacroContext();
-
-  startDerivFeed();
-  startBinanceFeed();
+  startFeed();
 
   // Evaluasi berkala
+  evaluateAll();
+  renderCountdown();
   setInterval(evaluateAll, 1000);
   setInterval(renderCountdown, 1000);
-  setInterval(loadMacroContext, 180000); // refresh berita tiap 3 menit
+  setInterval(loadMacroContext, 180000);
 
-  $('modeSelect').addEventListener('change', e => {
-    selectedMode = e.target.value;
-    initEngines();
-  });
+  if ($('modeSelect')) {
+    $('modeSelect').addEventListener('change', e => {
+      selectedMode = e.target.value;
+      buildEngines(ALL_KEYS);
+      evaluateAll();
+    });
+  }
 
-  $('clearJournalBtn').addEventListener('click', () => {
-    if (confirm('Bersihkan riwayat jurnal eksekusi di browser ini?')) {
-      storedEntries = [];
-      saveAll();
-      updateJournalUI();
-    }
-  });
+  if ($('feedSelect')) {
+    $('feedSelect').addEventListener('change', e => {
+      selectedFeed = e.target.value;
+      startFeed();
+    });
+  }
 
-  $('refreshBtn').addEventListener('click', () => {
-    loadMacroContext();
-    evaluateAll();
-  });
-});
+  if ($('clearJournalBtn')) {
+    $('clearJournalBtn').addEventListener('click', () => {
+      if (confirm('Bersihkan riwayat jurnal eksekusi di browser ini?')) {
+        storedEntries = [];
+        saveAll();
+        updateJournalUI();
+      }
+    });
+  }
+
+  if ($('refreshBtn')) {
+    $('refreshBtn').addEventListener('click', () => {
+      loadMacroContext();
+      evaluateAll();
+    });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
