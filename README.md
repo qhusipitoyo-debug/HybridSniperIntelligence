@@ -33,6 +33,16 @@ Terminal hibrida terpadu yang menggabungkan:
    ```bash
    node tools/pair_stats.js --modes balanced,momentum
    ```
+4. **Uji Signal Lock Engine (M15)**:
+   ```bash
+   node tools/lock_test.js
+   ```
+
+---
+
+## Signal Lock Engine (`lock.js`)
+
+Gerbang akhir sebelum order: dipanggil **hanya saat candle M15 close** (dibangun otomatis dari tick Binance/Deriv di `app.js`). Alur: filter kualitas (spike, RVOL, spread, makro/news/FNG/DXY) → konfirmasi 2 candle close berturut-turut searah → **level dibekukan** (entry/SL/TP1/TP2 tidak berubah). Kelola posisi: TP1 → close 50% + SL digeser ke entry (BE), sisa ditarik ke TP2; SL konservatif dicek lebih dulu; plan kedaluwarsa setelah TTL 4 jam (status `TIME`). Hasil `CLOSED` masuk ke jurnal eksekusi & tabel "Riwayat Order Terkunci".
 
 ---
 

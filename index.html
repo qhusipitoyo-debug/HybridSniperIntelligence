@@ -94,6 +94,29 @@
     </div>
   </section>
 
+  <!-- Section 2b: Signal Lock Engine (M15 candle-close gate) -->
+  <section class="scanPanel">
+    <div class="sectionHead" style="padding:14px 14px 0;">
+      <div>
+        <h2>🔒 SIGNAL LOCK ENGINE (M15 Candle-Close Gate)</h2>
+        <span>Level dibekukan setelah 2 candle M15 close searah + lolos filter spike / RVOL / spread / makro</span>
+      </div>
+      <span id="lockCount" style="color:var(--gold); font-weight:800;">0 Terkunci · 0 Konfirmasi</span>
+    </div>
+    <div class="scanHeader">
+      <span>INSTRUMEN</span>
+      <span>STATUS</span>
+      <span>ARAH</span>
+      <span>ENTRY</span>
+      <span>SL</span>
+      <span>TP1 / TP2</span>
+      <span>USIA</span>
+    </div>
+    <div id="lockRows">
+      <div style="color:var(--muted); padding:10px 14px; font-size:11px;">Memuat Signal Lock Engine…</div>
+    </div>
+  </section>
+
   <!-- Section 2: Table Multi-Scanner -->
   <section class="scanPanel">
     <div class="sectionHead" style="padding:14px 14px 0;">
@@ -164,6 +187,7 @@
 
 <script src="engine.js?v=20"></script>
 <script src="context.js?v=1"></script>
-<script src="app.js?v=3"></script>
+<script src="lock.js?v=2"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

@@ -71,10 +71,139 @@ function ingestPair(pair, bid, ask, now) {
   if (!(bid > 0 && ask > 0 && ask >= bid) || !PAIRS[pair]) return;
   const mid = (bid + ask) / 2;
   quotes[pair] = { bid, ask, last: mid, ts: now };
+  lockIngestTick(pair, mid, now); // Signal Lock Engine: candle M15 dari tick mid
   const eng = engines[pair];
   if (eng) {
     eng.onTick(now, bid, ask);
   }
+}
+
+/* ============================================================
+   SIGNAL LOCK ENGINE (lock.js) — gerbang akhir M15 candle-close.
+   Candle M15 dibangun dari tick mid (Binance/Deriv); event
+   LOCKED / TP1 / CLOSED dibaca panel lock & jurnal di bawah.
+   ============================================================ */
+const LOCK = window.SnapLock || null;
+const LOCK_TF_MS = 15 * 60 * 1000;
+const lockCandles = {}; // pair -> {bars:[closed], cur:{time,open,high,low,close,vol}}
+const lockPlans = {};   // pair -> plan terkunci aktif
+const lastEval = {};    // pair -> hasil evaluate() terakhir (skor & arah utk lock)
+
+function lockIngestTick(pair, mid, now) {
+  if (!LOCK || !(mid > 0)) return;
+  const st = lockCandles[pair] || (lockCandles[pair] = { bars: [], cur: null });
+  const k = Math.floor(now / LOCK_TF_MS);
+  if (!st.cur || st.cur.k !== k) {
+    const prev = st.cur;
+    st.cur = { k, time: k * LOCK_TF_MS, open: mid, high: mid, low: mid, close: mid, vol: 0 };
+    if (prev && [prev.open, prev.high, prev.low, prev.close].every(Number.isFinite)) {
+      st.bars.push(prev);
+      if (st.bars.length > 240) st.bars.shift();
+      try { onLockCandleClose(pair, prev); } catch (e) { console.warn('[lock]', pair, e); }
+    }
+  }
+  const c = st.cur;
+  if (mid > c.high) c.high = mid;
+  if (mid < c.low) c.low = mid;
+  c.close = mid;
+  c.vol++; // proxy volume: jumlah tick per candle M15 (relatif antar candle)
+}
+
+function lockIndicators(pair, bars) {
+  const n = bars.length;
+  if (n < 15) return null; // butuh 14 bar utk ATR + 20 bar utk RVOL
+  let tr = 0;
+  for (let i = n - 14; i < n; i++) {
+    const b = bars[i], pc = bars[i - 1].close;
+    tr += Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc));
+  }
+  const atr = tr / 14;
+  let vSum = 0, vN = 0;
+  for (let i = Math.max(0, n - 21); i < n - 1; i++) { vSum += bars[i].vol; vN++; }
+  const rvol = vN && vSum > 0 ? bars[n - 1].vol / (vSum / vN) : 0;
+  const q = quotes[pair], P = PAIRS[pair];
+  const spreadPips = q && P && P.pip > 0 ? (q.ask - q.bid) / P.pip : Infinity;
+  return { atr, rvol, spreadOK: !!P && spreadPips <= P.maxSpread };
+}
+
+function lockMacroCtx(pair) {
+  const now = Date.now();
+  const currs = [pair.slice(0, 3), pair.slice(3, 6)];
+  if (pair === 'XAUUSD') currs.push('USD', 'XAU');
+  if (pair === 'BTCUSD' || pair === 'ETHUSD') currs.push('USD');
+  let newsImpact = null, newsMinutesAway = null;
+  for (const ev of calendarEvents) {
+    if (ev.impact !== 'High' || !currs.includes(ev.country)) continue;
+    const min = (ev.ts - now) / 60000;
+    if (newsMinutesAway === null || Math.abs(min) < Math.abs(newsMinutesAway)) {
+      newsMinutesAway = min; newsImpact = 'High';
+    }
+  }
+  const fng = sentimentData && sentimentData.fng ? Number(sentimentData.fng.value) : null;
+  return { fng: Number.isFinite(fng) ? fng : null, newsImpact, newsMinutesAway, dxyTrend: null };
+}
+
+function onLockCandleClose(pair, candle) {
+  if (!LOCK || !lastEval[pair]) return;
+  const ev = lastEval[pair];
+  const dir = ev.side === 'UP' ? 'BUY' : ev.side === 'DOWN' ? 'SELL' : null;
+  if (!dir) return; // engine belum punya arah — jangan buat kandidat
+  const ind = lockIndicators(pair, lockCandles[pair].bars) || { atr: 0, rvol: 0, spreadOK: false };
+  const score = Number.isFinite(ev.confidence) ? ev.confidence : NaN;
+  const res = LOCK.onCandleClose(pair, candle, ind, score, dir, lockMacroCtx(pair));
+  handleLockEvent(res);
+}
+
+function handleLockEvent(res) {
+  if (!res || !res.signal) {
+    if (res && res.why) console.log('[lock]', res.event, res.why);
+    return;
+  }
+  const s = res.signal;
+  if (res.event === 'LOCKED') {
+    lockPlans[s.sym] = s;
+    if (!storedEntries.some(e => e.id === s.id)) {
+      storedEntries.push({ id: s.id, pair: s.sym, side: s.dir === 'BUY' ? 'UP' : 'DOWN',
+        order: s.dir, entry: s.entry, sl: s.sl, tp1: s.tp1, tp2: s.tp2, t: s.lockedAt, locked: true });
+      saveAll();
+      updateJournalUI();
+    }
+  } else if (res.event === 'TP1') {
+    lockPlans[s.sym] = s; // SL sudah digeser ke entry (BE) oleh lock.js
+  } else if (res.event === 'CLOSED') {
+    const e = storedEntries.find(x => x.id === s.id);
+    if (e) {
+      e.resultR = s.resultR;
+      e.status = s.status;
+      e.closedAt = s.closedAt;
+      saveAll();
+      updateJournalUI();
+    }
+    delete lockPlans[s.sym];
+  }
+}
+
+function updateLockUI() {
+  if (!LOCK || !$('lockRows')) return;
+  const plans = LOCK.allLocked();
+  const rows = plans.length ? plans.map(s => {
+    const c = PAIRS[s.sym] || { name: s.sym, nick: '', dp: 2 };
+    const f = v => Number(v).toFixed(c.dp);
+    const age = Math.max(0, Math.round((Date.now() - s.lockedAt) / 60000)) + 'm';
+    const st = s.status === 'TP1_HIT' ? 'TP1 ✓ (BE)' : '🔒 LOCKED';
+    const buy = s.dir === 'BUY';
+    return `<div class="scanRow ${s.status === 'TP1_HIT' ? 'active' : ''}">
+      <div><b>${c.name}</b> <small style="color:var(--muted)">${c.nick}</small></div>
+      <div>${st}</div>
+      <div class="${buy ? 'upText' : 'downText'}">${s.dir}</div>
+      <div style="font-family:monospace">${f(s.entry)}</div>
+      <div style="font-family:monospace;color:var(--down)">${f(s.sl)}</div>
+      <div style="font-family:monospace;color:var(--up)">${f(s.tp1)} / ${f(s.tp2)}</div>
+      <div style="color:var(--muted)">${age}</div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted); padding:10px 14px; font-size:11px;">Belum ada sinyal terkunci. Engine menunggu 2 candle M15 close berturut-turut searah + lolos filter kualitas (spike, RVOL, spread, makro).</div>';
+  safeHTML('lockRows', rows);
+  safeText('lockCount', `${plans.length} Terkunci · ${LOCK.allCandidates().filter(c => c.count > 0).length} Konfirmasi`);
 }
 
 function needBars(pair) {
@@ -438,6 +567,7 @@ function evaluateAll() {
     const dp = c.dp;
 
     const ev = eng.evaluate(now);
+    lastEval[pair] = ev; // dipakai Signal Lock Engine saat candle M15 close
     const buy = ev.side === 'UP';
     const lbl = buy ? 'BUY' : 'SELL';
 
@@ -530,6 +660,7 @@ function evaluateAll() {
   safeHTML('alertBoard', alertCards.length ? alertCards.join('') : '<div style="color:var(--muted); padding:20px; font-size:12px;">Belum ada order yang mencapai tahap SETUP / ENTRY saat ini. Scanner memindai terus di latar belakang…</div>');
   safeHTML('scanRows', matrixRows.join(''));
   safeText('activePlanCount', `${alertCards.length} Sinyal Lolos`);
+  updateLockUI();
 }
 
 /* ---------- Salin Order ---------- */
