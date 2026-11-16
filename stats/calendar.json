@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-16T20:36:46.570Z",
+  "updatedAt": "2026-11-16T22:00:05.377Z",
   "source": "faireconomy",
-  "count": 121,
+  "count": 124,
   "events": [
     {
       "ts": 1794778200000,
@@ -214,16 +214,6 @@
       "actual": ""
     },
     {
-      "ts": 1794840480000,
-      "date": "2026-11-16T14:48:00.000Z",
-      "country": "USD",
-      "title": "Cleveland Fed Inflation Expectations",
-      "impact": "Low",
-      "forecast": "",
-      "previous": "3.3%",
-      "actual": ""
-    },
-    {
       "ts": 1794848400000,
       "date": "2026-11-16T17:00:00.000Z",
       "country": "USD",
@@ -274,6 +264,26 @@
       "actual": ""
     },
     {
+      "ts": 1794870600000,
+      "date": "2026-11-16T23:10:00.000Z",
+      "country": "USD",
+      "title": "FOMC Member Barkin Speaks",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "",
+      "actual": ""
+    },
+    {
+      "ts": 1794871800000,
+      "date": "2026-11-16T23:30:00.000Z",
+      "country": "USD",
+      "title": "FOMC Member Goolsbee Speaks",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "",
+      "actual": ""
+    },
+    {
       "ts": 1794875400000,
       "date": "2026-11-17T00:30:00.000Z",
       "country": "AUD",
@@ -299,7 +309,7 @@
       "country": "JPY",
       "title": "Tertiary Industry Activity m/m",
       "impact": "Low",
-      "forecast": "0.0%",
+      "forecast": "0.1%",
       "previous": "-0.1%",
       "actual": ""
     },
@@ -319,7 +329,7 @@
       "country": "GBP",
       "title": "Claimant Count Change",
       "impact": "Low",
-      "forecast": "28.1K",
+      "forecast": "25.4K",
       "previous": "30.3K",
       "actual": ""
     },
@@ -349,7 +359,7 @@
       "country": "EUR",
       "title": "ZEW Economic Sentiment",
       "impact": "Low",
-      "forecast": "18.3",
+      "forecast": "19.1",
       "previous": "18.5",
       "actual": ""
     },
@@ -359,7 +369,7 @@
       "country": "EUR",
       "title": "German ZEW Economic Sentiment",
       "impact": "Low",
-      "forecast": "28.3",
+      "forecast": "28.8",
       "previous": "28.1",
       "actual": ""
     },
@@ -379,7 +389,7 @@
       "country": "CAD",
       "title": "Housing Starts",
       "impact": "Low",
-      "forecast": "243K",
+      "forecast": "241K",
       "previous": "249K",
       "actual": ""
     },
@@ -419,7 +429,7 @@
       "country": "USD",
       "title": "Retail Sales m/m",
       "impact": "High",
-      "forecast": "0.2%",
+      "forecast": "0.1%",
       "previous": "0.8%",
       "actual": ""
     },
@@ -459,7 +469,7 @@
       "country": "USD",
       "title": "Industrial Production m/m",
       "impact": "Low",
-      "forecast": "0.1%",
+      "forecast": "0.0%",
       "previous": "0.7%",
       "actual": ""
     },
@@ -559,7 +569,7 @@
       "country": "JPY",
       "title": "Trade Balance",
       "impact": "Low",
-      "forecast": "-0.88T",
+      "forecast": "-0.90T",
       "previous": "-0.70T",
       "actual": ""
     },
@@ -569,7 +579,7 @@
       "country": "AUD",
       "title": "Wage Price Index q/q",
       "impact": "Medium",
-      "forecast": "0.9%",
+      "forecast": "1.0%",
       "previous": "0.8%",
       "actual": ""
     },
@@ -749,7 +759,7 @@
       "country": "USD",
       "title": "Pending Home Sales m/m",
       "impact": "Low",
-      "forecast": "-2.3%",
+      "forecast": "-2.1%",
       "previous": "-7.3%",
       "actual": ""
     },
@@ -761,6 +771,16 @@
       "impact": "Low",
       "forecast": "",
       "previous": "4.7M",
+      "actual": ""
+    },
+    {
+      "ts": 1795022100000,
+      "date": "2026-11-18T17:15:00.000Z",
+      "country": "USD",
+      "title": "FOMC Member Daly Speaks",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "",
       "actual": ""
     },
     {
@@ -849,7 +869,7 @@
       "country": "JPY",
       "title": "Core Machinery Orders m/m",
       "impact": "Low",
-      "forecast": "1.4%",
+      "forecast": "1.3%",
       "previous": "5.2%",
       "actual": ""
     },
@@ -859,7 +879,7 @@
       "country": "AUD",
       "title": "Employment Change",
       "impact": "High",
-      "forecast": "25.2K",
+      "forecast": "25.5K",
       "previous": "-39.3K",
       "actual": ""
     },
@@ -974,6 +994,16 @@
       "actual": ""
     },
     {
+      "ts": 1795098300000,
+      "date": "2026-11-19T14:25:00.000Z",
+      "country": "USD",
+      "title": "FOMC Member Jefferson Speaks",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "",
+      "actual": ""
+    },
+    {
       "ts": 1795100400000,
       "date": "2026-11-19T15:00:00.000Z",
       "country": "USD",
@@ -1000,7 +1030,7 @@
       "title": "Natural Gas Storage",
       "impact": "Low",
       "forecast": "",
-      "previous": "",
+      "previous": "61B",
       "actual": ""
     },
     {
