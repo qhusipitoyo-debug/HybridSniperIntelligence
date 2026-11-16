@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-16T14:29:09.655Z",
+  "updatedAt": "2026-11-16T20:36:46.570Z",
   "source": "faireconomy",
-  "count": 120,
+  "count": 121,
   "events": [
     {
       "ts": 1794778200000,
@@ -201,6 +201,16 @@
       "impact": "Low",
       "forecast": "",
       "previous": "",
+      "actual": ""
+    },
+    {
+      "ts": 1794840300000,
+      "date": "2026-11-16T14:45:00.000Z",
+      "country": "USD",
+      "title": "Cleveland Fed Inflation Expectations",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "3.3%",
       "actual": ""
     },
     {
