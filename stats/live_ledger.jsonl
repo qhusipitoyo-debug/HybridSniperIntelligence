@@ -1,0 +1,2 @@
+{"id":"BTCUSD|1794781807000|UP","pair":"BTCUSD","mode":"balanced","feed":"deriv","t":1794781807000,"closedAt":1794799808000,"side":"UP","done":"TIME","resultR":-0.154476,"mfe":0.1676,"mae":-0.6918,"entry":65167.2,"sl":64236.93,"tp1":66841.68,"tp2":68423.14,"spread":2.8839999999981956}
+{"id":"ETHUSD|1794781807000|UP","pair":"ETHUSD","mode":"balanced","feed":"deriv","t":1794781807000,"closedAt":1794799808000,"side":"UP","done":"TIME","resultR":-0.228179,"mfe":0.1655,"mae":-0.7178,"entry":1827.41,"sl":1792.82,"tp1":1896.62,"tp2":1965.82,"spread":0.5799999999999272}
