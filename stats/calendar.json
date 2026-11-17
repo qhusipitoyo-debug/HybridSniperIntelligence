@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-16T23:30:07.457Z",
+  "updatedAt": "2026-11-17T03:19:46.080Z",
   "source": "faireconomy",
-  "count": 124,
+  "count": 125,
   "events": [
     {
       "ts": 1794778200000,
@@ -279,6 +279,16 @@
       "country": "USD",
       "title": "FOMC Member Goolsbee Speaks",
       "impact": "Low",
+      "forecast": "",
+      "previous": "",
+      "actual": ""
+    },
+    {
+      "ts": 1794873600000,
+      "date": "2026-11-17T00:00:00.000Z",
+      "country": "NZD",
+      "title": "RBNZ Gov Breman Speaks",
+      "impact": "Medium",
       "forecast": "",
       "previous": "",
       "actual": ""
