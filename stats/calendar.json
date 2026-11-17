@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-17T13:19:51.992Z",
+  "updatedAt": "2026-11-17T14:49:54.123Z",
   "source": "faireconomy",
-  "count": 125,
+  "count": 126,
   "events": [
     {
       "ts": 1794778200000,
@@ -484,6 +484,16 @@
       "actual": ""
     },
     {
+      "ts": 1794925740000,
+      "date": "2026-11-17T14:29:00.000Z",
+      "country": "NZD",
+      "title": "GDT Price Index",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "3.0%",
+      "actual": ""
+    },
+    {
       "ts": 1794925800000,
       "date": "2026-11-17T14:30:00.000Z",
       "country": "USD",
@@ -779,7 +789,7 @@
       "country": "USD",
       "title": "Crude Oil Inventories",
       "impact": "Low",
-      "forecast": "",
+      "forecast": "-0.3M",
       "previous": "4.7M",
       "actual": ""
     },
