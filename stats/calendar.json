@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-17T23:27:40.025Z",
+  "updatedAt": "2026-11-18T02:59:31.625Z",
   "source": "faireconomy",
-  "count": 125,
+  "count": 126,
   "events": [
     {
       "ts": 1794778200000,
@@ -566,6 +566,16 @@
     {
       "ts": 1794958200000,
       "date": "2026-11-17T23:30:00.000Z",
+      "country": "AUD",
+      "title": "MI Leading Index m/m",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "-0.1%",
+      "actual": ""
+    },
+    {
+      "ts": 1794958740000,
+      "date": "2026-11-17T23:39:00.000Z",
       "country": "AUD",
       "title": "MI Leading Index m/m",
       "impact": "Low",
