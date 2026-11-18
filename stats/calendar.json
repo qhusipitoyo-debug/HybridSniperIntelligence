@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-18T13:45:00.989Z",
+  "updatedAt": "2026-11-18T19:27:59.984Z",
   "source": "faireconomy",
-  "count": 125,
+  "count": 126,
   "events": [
     {
       "ts": 1794778200000,
@@ -1161,6 +1161,16 @@
       "impact": "Low",
       "forecast": "18.0B",
       "previous": "24.5B",
+      "actual": ""
+    },
+    {
+      "ts": 1795158120000,
+      "date": "2026-11-20T07:02:00.000Z",
+      "country": "CNY",
+      "title": "Foreign Direct Investment ytd/y",
+      "impact": "Low",
+      "forecast": "",
+      "previous": "-4.3%",
       "actual": ""
     },
     {
