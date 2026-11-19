@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-19T18:04:01.329Z",
+  "updatedAt": "2026-11-19T19:27:45.680Z",
   "source": "faireconomy",
-  "count": 126,
+  "count": 125,
   "events": [
     {
       "ts": 1794778200000,
@@ -1011,16 +1011,6 @@
       "impact": "Low",
       "forecast": "0.0%",
       "previous": "0.0%",
-      "actual": ""
-    },
-    {
-      "ts": 1795101300000,
-      "date": "2026-11-19T15:15:00.000Z",
-      "country": "USD",
-      "title": "Mortgage Delinquencies",
-      "impact": "Low",
-      "forecast": "",
-      "previous": "4.37%",
       "actual": ""
     },
     {
