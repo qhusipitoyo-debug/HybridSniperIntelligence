@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-20T16:31:01.520Z",
+  "updatedAt": "2026-11-20T17:53:19.051Z",
   "source": "faireconomy",
   "count": 126,
   "events": [
@@ -347,20 +347,20 @@
       "ts": 1794898800000,
       "date": "2026-11-17T07:00:00.000Z",
       "country": "GBP",
-      "title": "Unemployment Rate",
+      "title": "HMRC Payrolls Change",
       "impact": "Low",
-      "forecast": "4.7%",
-      "previous": "4.7%",
+      "forecast": "9K",
+      "previous": "13K",
       "actual": ""
     },
     {
       "ts": 1794898800000,
       "date": "2026-11-17T07:00:00.000Z",
       "country": "GBP",
-      "title": "HMRC Payrolls Change",
+      "title": "Unemployment Rate",
       "impact": "Low",
-      "forecast": "9K",
-      "previous": "13K",
+      "forecast": "4.7%",
+      "previous": "4.7%",
       "actual": ""
     },
     {
