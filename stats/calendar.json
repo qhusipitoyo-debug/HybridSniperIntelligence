@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-20T10:38:52.058Z",
+  "updatedAt": "2026-11-20T16:31:01.520Z",
   "source": "faireconomy",
-  "count": 124,
+  "count": 126,
   "events": [
     {
       "ts": 1794778200000,
@@ -351,6 +351,16 @@
       "impact": "Low",
       "forecast": "4.7%",
       "previous": "4.7%",
+      "actual": ""
+    },
+    {
+      "ts": 1794898800000,
+      "date": "2026-11-17T07:00:00.000Z",
+      "country": "GBP",
+      "title": "HMRC Payrolls Change",
+      "impact": "Low",
+      "forecast": "9K",
+      "previous": "13K",
       "actual": ""
     },
     {
@@ -1231,6 +1241,16 @@
       "impact": "Medium",
       "forecast": "",
       "previous": "4.3%",
+      "actual": ""
+    },
+    {
+      "ts": 1795194000000,
+      "date": "2026-11-20T17:00:00.000Z",
+      "country": "USD",
+      "title": "President Trump Speaks",
+      "impact": "Medium",
+      "forecast": "",
+      "previous": "",
       "actual": ""
     },
     {
